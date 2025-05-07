@@ -1,0 +1,27 @@
+name: 每日充电提醒
+
+on:
+  schedule:
+    - cron: '0 10 * * *'         # UTC 10:00，每天一次（北京时间 18:00）
+  workflow_dispatch:           # 支持手动触发
+
+jobs:
+  reminder:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      - name: 安装依赖
+        run: pip install requests
+      - name: 运行充电提醒脚本
+        env:
+          WEATHER_API_URL:   ${{ secrets.WEATHER_API_URL }}
+          WEATHER_API_KEY:   ${{ secrets.WEATHER_API_KEY }}
+          WEATHER_LOCATION:  ${{ secrets.WEATHER_LOCATION }}
+          BARK_BASE_URL:     ${{ secrets.BARK_BASE_URL }}
+          BARK_KEY:          ${{ secrets.BARK_KEY }}
+          ICON_URL:          ${{ secrets.ICON_URL }}
+          TESLA_MODEL:       ${{ secrets.TESLA_MODEL }}
+        run: python3 scripts/charge_reminder.py
