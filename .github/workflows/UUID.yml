@@ -20,14 +20,19 @@ jobs:
       - name: '生成 UUID'
         run: echo $(uuidgen) > .github/UUID.txt
 
+      - name: '保存本地修改'
+        run: git stash
+
       - name: '同步更新代码'
-        run: git pull --rebase
+        run: |
+          git pull --rebase
+          git stash pop || echo "无本地修改"
 
       - name: '提交更新'
         id: commit
         run: |
           git config user.email "me@kmou424.moe"
-          git config user.name "张三"    # 这里你可以替换成你的中文名字
+          git config user.name "张三"    
           git add .github/UUID.txt
           if git diff --cached --quiet; then
             echo "status=no_change" >> $GITHUB_OUTPUT
