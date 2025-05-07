@@ -1,9 +1,9 @@
-name: 'Avoid workflow being suspended'
+name: '避免工作流被暂停'
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 0 1,15,28 * *'
+    - cron: '0 0 1 * *'
 
 jobs:
   auto_renew:
@@ -12,31 +12,31 @@ jobs:
       contents: write
 
     steps:
-      - name: 'Checkout codes'
+      - name: '检出代码'
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - name: 'Generate UUID'
+      - name: '生成 UUID'
         run: echo $(uuidgen) > .github/UUID.txt
 
-      - name: 'Sync before commit'
+      - name: '同步更新代码'
         run: git pull --rebase
 
-      - name: 'Commit Files'
+      - name: '提交更新'
         id: commit
         run: |
           git config user.email "me@kmou424.moe"
-          git config user.name "kmou424"
+          git config user.name "张三"    # 这里你可以替换成你的中文名字
           git add .github/UUID.txt
           if git diff --cached --quiet; then
             echo "status=no_change" >> $GITHUB_OUTPUT
           else
-            git commit -m 'update UUID'
+            git commit -m '更新 UUID'
             echo "status=success" >> $GITHUB_OUTPUT
           fi
 
-      - name: 'GitHub Push'
+      - name: '推送到 GitHub'
         if: steps.commit.outputs.status == 'success'
         uses: ad-m/github-push-action@v0.6.0
         with:
