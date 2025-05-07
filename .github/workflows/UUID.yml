@@ -3,7 +3,7 @@ name: '避免工作流被暂停'
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 0 1 * *'
+    - cron: '0 0 12 * *'
 
 jobs:
   auto_renew:
