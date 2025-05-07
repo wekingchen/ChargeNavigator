@@ -17,8 +17,11 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: '创建 scripts 文件夹（如果不存在）'
+        run: mkdir -p scripts
+
       - name: '生成 UUID'
-        run: echo $(uuidgen) > .github/UUID.txt
+        run: echo $(uuidgen) > scripts/UUID.txt
 
       - name: '保存本地修改'
         run: git stash
@@ -32,8 +35,8 @@ jobs:
         id: commit
         run: |
           git config user.email "me@kmou424.moe"
-          git config user.name "张三"    
-          git add .github/UUID.txt
+          git config user.name "张三"
+          git add scripts/UUID.txt
           if git diff --cached --quiet; then
             echo "status=no_change" >> $GITHUB_OUTPUT
           else
