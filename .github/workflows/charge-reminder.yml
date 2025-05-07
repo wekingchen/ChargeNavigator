@@ -2,7 +2,7 @@ name: 每日充电提醒
 
 on:
   schedule:
-    - cron: '30 11 * * *'         # UTC 10:00，每天一次（北京时间 18:00）
+    - cron: '30 11 * * *'         # UTC 11:30，每天一次（北京时间 19:30）
   workflow_dispatch:           # 支持手动触发
 
 jobs:
