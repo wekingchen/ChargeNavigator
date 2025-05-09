@@ -7,11 +7,14 @@ import logging
 import requests
 from urllib.parse import quote
 from typing import List, Optional, Tuple
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
 # 日志配置
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
+
+# 设置北京时间
+BEIJING_TZ = timezone(timedelta(hours=8))
 
 # 夜间小时设置
 NIGHT_HOURS = set(range(21, 24)) | set(range(0, 7))
@@ -33,10 +36,9 @@ TESLA_MODEL       = os.getenv("TESLA_MODEL", "default")
 
 # 低谷时段规则
 OFF_PEAK_HOURS = {
-    (3, 6): "22:00 - 08:00",
-    (10, 11): "22:00 - 08:00",
-    (7, 9): "01:00 - 07:00",
-    (12, 2): "00:00 - 08:00"
+    (3, 4, 5, 6, 10, 11): "22:00 - 08:00",
+    (7, 8, 9): "01:00 - 07:00",
+    (12, 1, 2): "00:00 - 08:00"
 }
 
 def fetch_hourly_weather() -> List[dict]:
@@ -71,7 +73,7 @@ def suggest_limit(temp: Optional[float], model: str) -> str:
     return "建议充电至 90%"
 
 def get_off_peak_period() -> str:
-    current_month = datetime.now().month
+    current_month = datetime.now(BEIJING_TZ).month
     for months, period in OFF_PEAK_HOURS.items():
         if current_month in months:
             return period
