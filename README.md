@@ -31,7 +31,7 @@
 * `BARK_BASE_URL`     ：Bark 服务基础 URL
 * `BARK_KEY`          ：Bark 推送 Key
 * `ICON_URL`          ：推送图标的 URL
-* `TESLA_MODEL`       ：车型策略标识（可选，默认 `default`）
+* `VEHICLE_MODEL`       ：车辆策略标识（可选，默认 `default`），支持 `model3_2019`, `aito_m8` 等
 
 ## 本地测试
 
@@ -46,7 +46,7 @@ export WEATHER_LOCATION=...
 export BARK_BASE_URL=...
 export BARK_KEY=...
 export ICON_URL=...
-export TESLA_MODEL=default
+export VEHICLE_MODEL=default
 
 # 运行脚本
 python3 scripts/charge_reminder.py
@@ -87,6 +87,6 @@ jobs:
           BARK_BASE_URL:     ${{ secrets.BARK_BASE_URL }}
           BARK_KEY:          ${{ secrets.BARK_KEY }}
           ICON_URL:          ${{ secrets.ICON_URL }}
-          TESLA_MODEL:       ${{ secrets.TESLA_MODEL }}
+          VEHICLE_MODEL:       ${{ secrets.VEHICLE_MODEL }}
         run: python3 scripts/charge_reminder.py
 ```
