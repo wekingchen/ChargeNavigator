@@ -32,7 +32,7 @@ WEATHER_LOCATION  = os.getenv("WEATHER_LOCATION", "101270101")
 BARK_BASE_URL     = os.getenv("BARK_BASE_URL", "")
 BARK_KEY          = os.getenv("BARK_KEY", "")
 ICON_URL          = os.getenv("ICON_URL", "")
-TESLA_MODEL       = os.getenv("TESLA_MODEL", "default")
+VEHICLE_MODEL       = os.getenv("VEHICLE_MODEL", "default")
 
 # 低谷时段规则
 OFF_PEAK_HOURS = {
@@ -97,7 +97,7 @@ def main():
     temp = extract_night_min_temp(hourly)
     logger.info("夜间最低温：%s", temp)
 
-    advice = suggest_limit(temp, TESLA_MODEL)
+    advice = suggest_limit(temp, VEHICLE_MODEL)
     off_peak_period = get_off_peak_period()
     
     title = "🔋 今日充电提醒"
