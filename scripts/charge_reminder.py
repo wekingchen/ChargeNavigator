@@ -7,6 +7,7 @@ import logging
 import requests
 from urllib.parse import quote
 from typing import List, Optional, Tuple
+from datetime import datetime
 
 # 日志配置
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -30,11 +31,15 @@ BARK_KEY          = os.getenv("BARK_KEY", "")
 ICON_URL          = os.getenv("ICON_URL", "")
 TESLA_MODEL       = os.getenv("TESLA_MODEL", "default")
 
+# 低谷时段规则
+OFF_PEAK_HOURS = {
+    (3, 6): "22:00 - 08:00",
+    (10, 11): "22:00 - 08:00",
+    (7, 9): "01:00 - 07:00",
+    (12, 2): "00:00 - 08:00"
+}
 
 def fetch_hourly_weather() -> List[dict]:
-    """
-    拉取 24 小时逐小时天气数据
-    """
     url = f"{WEATHER_API_URL}?location={WEATHER_LOCATION}&key={WEATHER_API_KEY}&gzip=n"
     try:
         res = requests.get(url, timeout=10)
@@ -44,11 +49,7 @@ def fetch_hourly_weather() -> List[dict]:
         logger.error("天气接口请求失败：%s", e)
         return []
 
-
 def extract_night_min_temp(hourly: List[dict]) -> Optional[float]:
-    """
-    过滤夜间（21:00-06:59）温度并取最低值
-    """
     temps = []
     for entry in hourly:
         t = entry.get("temp")
@@ -61,11 +62,7 @@ def extract_night_min_temp(hourly: List[dict]) -> Optional[float]:
             continue
     return min(temps) if temps else None
 
-
 def suggest_limit(temp: Optional[float], model: str) -> str:
-    """
-    根据最低温度和车型策略，返回充电建议
-    """
     if temp is None:
         return "无法获取天气数据，请手动设定充电上限"
     for threshold, pct in CHARGE_STRATEGIES.get(model, CHARGE_STRATEGIES["default"]):
@@ -73,11 +70,14 @@ def suggest_limit(temp: Optional[float], model: str) -> str:
             return f"建议充电至 {pct}%"
     return "建议充电至 90%"
 
+def get_off_peak_period() -> str:
+    current_month = datetime.now().month
+    for months, period in OFF_PEAK_HOURS.items():
+        if current_month in months:
+            return period
+    return "未知时段"
 
 def push_bark(title: str, body: str):
-    """
-    通过 Bark API 推送消息
-    """
     url = f"{BARK_BASE_URL}/{BARK_KEY}/{quote(title)}/{quote(body)}"
     params = {"icon": ICON_URL}
     logger.info("推送 URL：%s?%s", url, "&".join(f"{k}={v}" for k, v in params.items()))
@@ -90,22 +90,22 @@ def push_bark(title: str, body: str):
         logger.error("推送失败：%s", e)
         sys.exit(1)
 
-
 def main():
     hourly = fetch_hourly_weather()
     temp = extract_night_min_temp(hourly)
     logger.info("夜间最低温：%s", temp)
 
     advice = suggest_limit(temp, TESLA_MODEL)
+    off_peak_period = get_off_peak_period()
+    
     title = "🔋 今日充电提醒"
     if temp is not None:
-        body = f"🌡️ 成都今晚最低气温约为 {temp:.1f}℃。\n⚡ {advice}"
+        body = f"🌡️ 成都今晚最低气温约为 {temp:.1f}℃。\n⚡ {advice}\n🕰️ 今日低谷充电时段：{off_peak_period}"
     else:
-        body = f"⚠️ {advice}"
+        body = f"⚠️ {advice}\n🕰️ 今日低谷充电时段：{off_peak_period}"
 
     logger.info("消息内容：%s", body)
     push_bark(title, body)
-
 
 if __name__ == "__main__":
     main()
