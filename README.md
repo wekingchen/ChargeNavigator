@@ -87,6 +87,6 @@ jobs:
           BARK_BASE_URL:     ${{ secrets.BARK_BASE_URL }}
           BARK_KEY:          ${{ secrets.BARK_KEY }}
           ICON_URL:          ${{ secrets.ICON_URL }}
-          VEHICLE_MODEL:       ${{ secrets.VEHICLE_MODEL }}
+          VEHICLE_MODEL:     ${{ secrets.VEHICLE_MODEL }}
         run: python3 scripts/charge_reminder.py
 ```
