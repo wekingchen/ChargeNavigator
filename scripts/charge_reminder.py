@@ -22,9 +22,15 @@ NIGHT_HOURS = set(range(21, 24)) | set(range(0, 7))
 # 电池可用容量 (kWh)
 USABLE_CAPACITY_KWH = 51.975
 
-# 各车型温度阈值对应目标充电电量（单位：kWh）
+# 优化后的三元锂温度策略：低温降额，25°C以上不超70%
 CHARGE_STRATEGIES_KWH = {
-    "m8_tri_ncm": [(15, 38.98), (5, 41.58), (0, 44.18), (-273, 46.78)],
+    "m8_tri_ncm": [
+        (25, 36.38),   # >25°C: 70%
+        (15, 41.58),   # 15~25°C: 80%
+        (5, 44.18),    # 5~15°C: 85%
+        (0, 31.19),    # 0~5°C: 60%
+        (-273, 25.99)  # <0°C: 50%
+    ],
     "default":    [(12, 41.58), (5, 44.18), (-273, 46.78)],
     "model3_2019": [(10, 38.0), (3, 44.18), (-273, 46.78)],
 }
@@ -68,7 +74,9 @@ def extract_night_min_temp(hourly: List[dict]) -> Optional[float]:
             continue
     return min(temps) if temps else None
 
-def suggest_limit(temp: Optional[float], model: str) -> str:
+def suggest_limit(temp: Optional[float], model: str, is_calibration_day: bool) -> str:
+    if is_calibration_day:
+        return "建议执行 BMS 校准：将电量放至 20% 以下后再充满至 100%"
     if temp is None:
         return "无法获取天气数据，请手动设定充电上限"
     strategy = CHARGE_STRATEGIES_KWH.get(model, CHARGE_STRATEGIES_KWH["default"])
@@ -76,7 +84,6 @@ def suggest_limit(temp: Optional[float], model: str) -> str:
         if temp >= threshold:
             pct = round(target_kwh / USABLE_CAPACITY_KWH * 100)
             return f"建议充电至 {pct}% (约 {target_kwh:.1f}kWh)"
-    # 最低档
     last_kwh = strategy[-1][1]
     last_pct = round(last_kwh / USABLE_CAPACITY_KWH * 100)
     return f"建议充电至 {last_pct}% (约 {last_kwh:.1f}kWh)"
@@ -105,16 +112,26 @@ def push_bark(title: str, body: str):
         sys.exit(1)
 
 def main():
+    now = datetime.now(BEIJING_TZ)
+    in_calibration_window = 13 <= now.day <= 17
+
     hourly = fetch_hourly_weather()
     temp = extract_night_min_temp(hourly)
     logger.info("夜间最低温：%s", temp)
 
-    advice = suggest_limit(temp, VEHICLE_MODEL)
+    # 校准仅在温度适中时触发
+    is_calibration_day = in_calibration_window and (temp is not None and 10 < temp < 25)
+
+    advice = suggest_limit(temp, VEHICLE_MODEL, is_calibration_day)
     off_peak_period = get_off_peak_period()
 
     title = "🔋 今日充电提醒"
-    if temp is not None:
-        body = f"🌡️ 成都今晚最低气温约为 {temp:.1f}℃。\n⚡ {advice}\n🕰️ 今日低谷充电时段：{off_peak_period}"
+    if is_calibration_day:
+        body = f"📆 本周为月度校准期。
+🧠 {advice}\n🕰️ 今日低谷充电时段：{off_peak_period}"
+    elif temp is not None:
+        body = f"🌡️ 成都今晚最低气温约为 {temp:.1f}℃。
+⚡ {advice}\n🕰️ 今日低谷充电时段：{off_peak_period}"
     else:
         body = f"⚠️ {advice}\n🕰️ 今日低谷充电时段：{off_peak_period}"
 
