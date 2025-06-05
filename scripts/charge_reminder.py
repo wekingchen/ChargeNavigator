@@ -127,11 +127,13 @@ def main():
 
     title = "🔋 今日充电提醒"
     if is_calibration_day:
-        body = f"📆 本周为月度校准期。
-🧠 {advice}\n🕰️ 今日低谷充电时段：{off_peak_period}"
+        body = (
+            f"📆 本周为月度校准期。\n"
+            f"🧠 {advice}\n"
+            f"🕰️ 今日低谷充电时段：{off_peak_period}"
+        )
     elif temp is not None:
-        body = f"🌡️ 成都今晚最低气温约为 {temp:.1f}℃。
-⚡ {advice}\n🕰️ 今日低谷充电时段：{off_peak_period}"
+        body = f"🌡️ 成都今晚最低气温约为 {temp:.1f}℃。\n⚡ {advice}\n🕰️ 今日低谷充电时段：{off_peak_period}"
     else:
         body = f"⚠️ {advice}\n🕰️ 今日低谷充电时段：{off_peak_period}"
 
