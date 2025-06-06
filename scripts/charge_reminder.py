@@ -72,7 +72,7 @@ def fetch_hourly_weather() -> List[dict]:
         return []
 
 def fetch_city_name(location_id: str) -> str:
-    url = f"{WEATHER_API_URL}/v2/city/lookup?location={location_id}&key={WEATHER_API_KEY}"
+    url = f"{WEATHER_API_URL}/geo/v2/city/lookup?location={location_id}&key={WEATHER_API_KEY}"
     try:
         r = requests.get(url, timeout=8)
         r.raise_for_status()
