@@ -5,6 +5,10 @@ import requests
 
 app = Flask(__name__)
 
+# 设置日志等级为 INFO
+import logging
+app.logger.setLevel(logging.INFO)
+
 # 环境变量
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 GITHUB_REPO  = os.getenv("GITHUB_REPO")  # e.g., "wekingchen/ChargeNavigator"
@@ -31,6 +35,7 @@ def get_public_key():
     r = requests.get(url, headers=headers)
     if r.status_code == 200:
         return r.json()
+    app.logger.error(f"获取 GitHub 公钥失败：{r.status_code} - {r.text}")
     return None
 
 def encrypt(public_key: str, secret_value: str) -> str:
@@ -50,18 +55,27 @@ def upload_secret(secret_name, encrypted_value, key_id):
         "key_id": key_id
     }
     r = requests.put(url, headers=headers, json=payload)
-    return r.status_code in [201, 204]
+    if r.status_code in [201, 204]:
+        return True
+    app.logger.error(f"上传 Secret 失败：{r.status_code} - {r.text}")
+    return False
 
 @app.route("/update", methods=["POST"])
 def update_secret():
     data = request.get_json()
     city = data.get("city", "").strip()
     if not city:
+        app.logger.warning("收到空城市名")
         return jsonify({"error": "城市名不能为空"}), 400
+
+    app.logger.info(f"📩 收到城市名请求：{city}")
 
     city_id = get_city_id(city)
     if not city_id:
+        app.logger.error(f"❌ 获取城市 ID 失败：{city}")
         return jsonify({"error": "未能获取城市 ID"}), 500
+
+    app.logger.info(f"✅ 城市 {city} 的 ID 是 {city_id}")
 
     pk_data = get_public_key()
     if not pk_data:
@@ -71,6 +85,8 @@ def update_secret():
     ok = upload_secret("WEATHER_LOCATION", encrypted, pk_data["key_id"])
     if not ok:
         return jsonify({"error": "上传 GitHub Secret 失败"}), 500
+
+    app.logger.info(f"🔐 已成功加密并上传 {city}（ID: {city_id}）至 GitHub Secret")
 
     return jsonify({"status": "success", "city": city, "city_id": city_id})
 
