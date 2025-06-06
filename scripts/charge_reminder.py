@@ -19,20 +19,30 @@ BEIJING_TZ = timezone(timedelta(hours=8))
 # 夜间小时设置
 NIGHT_HOURS = set(range(21, 24)) | set(range(0, 7))
 
-# 电池可用容量 (kWh)
-USABLE_CAPACITY_KWH = 51.975
+# 各车型可用电量（单位：kWh）
+USABLE_CAPACITY_MAP = {
+    "m8_tri_ncm": 51.975,
+    "model3_2020_sr_ncm": 51.8,
+    "default": 51.975,
+}
 
-# 优化后的三元锂温度策略：低温降额，25°C以上不超70%
+# 温度策略（kWh 对应目标能量）
 CHARGE_STRATEGIES_KWH = {
     "m8_tri_ncm": [
-        (25, 36.38),   # >25°C: 70%
-        (15, 41.58),   # 15~25°C: 80%
-        (5, 44.18),    # 5~15°C: 85%
-        (0, 31.19),    # 0~5°C: 60%
-        (-273, 25.99)  # <0°C: 50%
+        (25, 36.38),   # 70%
+        (15, 41.58),   # 80%
+        (5, 44.18),    # 85%
+        (0, 31.19),    # 60%
+        (-273, 25.99)  # 50%
     ],
-    "default":    [(12, 41.58), (5, 44.18), (-273, 46.78)],
-    "model3_2019": [(10, 38.0), (3, 44.18), (-273, 46.78)],
+    "model3_2020_sr_ncm": [
+        (25, 36.26),   # 70%
+        (15, 41.44),   # 80%
+        (5, 44.03),    # 85%
+        (0, 31.08),    # 60%
+        (-273, 25.9)   # 50%
+    ],
+    "default": [(12, 41.58), (5, 44.18), (-273, 46.78)],
 }
 
 # 从环境变量读取配置
@@ -79,13 +89,17 @@ def suggest_limit(temp: Optional[float], model: str, is_calibration_day: bool) -
         return "建议执行 BMS 校准：将电量放至 20% 以下后再充满至 100%"
     if temp is None:
         return "无法获取天气数据，请手动设定充电上限"
+
     strategy = CHARGE_STRATEGIES_KWH.get(model, CHARGE_STRATEGIES_KWH["default"])
+    usable_capacity = USABLE_CAPACITY_MAP.get(model, USABLE_CAPACITY_MAP["default"])
+
     for threshold, target_kwh in strategy:
         if temp >= threshold:
-            pct = round(target_kwh / USABLE_CAPACITY_KWH * 100)
+            pct = round(target_kwh / usable_capacity * 100)
             return f"建议充电至 {pct}% (约 {target_kwh:.1f}kWh)"
+
     last_kwh = strategy[-1][1]
-    last_pct = round(last_kwh / USABLE_CAPACITY_KWH * 100)
+    last_pct = round(last_kwh / usable_capacity * 100)
     return f"建议充电至 {last_pct}% (约 {last_kwh:.1f}kWh)"
 
 def get_off_peak_period() -> str:
@@ -119,7 +133,6 @@ def main():
     temp = extract_night_min_temp(hourly)
     logger.info("夜间最低温：%s", temp)
 
-    # 校准仅在温度适中时触发
     is_calibration_day = in_calibration_window and (temp is not None and 10 < temp < 25)
 
     advice = suggest_limit(temp, VEHICLE_MODEL, is_calibration_day)
