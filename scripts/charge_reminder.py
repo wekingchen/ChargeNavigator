@@ -29,18 +29,18 @@ USABLE_CAPACITY_MAP = {
 # 温度策略（kWh 对应目标能量）
 CHARGE_STRATEGIES_KWH = {
     "m8_tri_ncm": [
-        (25, 36.38),   # 70%
-        (15, 41.58),   # 80%
-        (5, 44.18),    # 85%
-        (0, 31.19),    # 60%
-        (-273, 25.99)  # 50%
+        (25, 36.38),
+        (15, 41.58),
+        (5, 44.18),
+        (0, 31.19),
+        (-273, 25.99)
     ],
     "model3_2020_sr_ncm": [
-        (25, 36.26),   # 70%
-        (15, 41.44),   # 80%
-        (5, 44.03),    # 85%
-        (0, 31.08),    # 60%
-        (-273, 25.9)   # 50%
+        (25, 36.26),
+        (15, 41.44),
+        (5, 44.03),
+        (0, 31.08),
+        (-273, 25.9)
     ],
     "default": [(12, 41.58), (5, 44.18), (-273, 46.78)],
 }
@@ -62,7 +62,7 @@ OFF_PEAK_HOURS = {
 }
 
 def fetch_hourly_weather() -> List[dict]:
-    url = f"{WEATHER_API_URL}?location={WEATHER_LOCATION}&key={WEATHER_API_KEY}&gzip=n"
+    url = f"{WEATHER_API_URL}/v7/weather/24h?location={WEATHER_LOCATION}&key={WEATHER_API_KEY}&gzip=n"
     try:
         res = requests.get(url, timeout=10)
         res.raise_for_status()
@@ -70,6 +70,18 @@ def fetch_hourly_weather() -> List[dict]:
     except Exception as e:
         logger.error("天气接口请求失败：%s", e)
         return []
+
+def fetch_city_name(location_id: str) -> str:
+    url = f"{WEATHER_API_URL}/v2/city/lookup?location={location_id}&key={WEATHER_API_KEY}"
+    try:
+        r = requests.get(url, timeout=8)
+        r.raise_for_status()
+        data = r.json()
+        if data.get("code") == "200" and data.get("location"):
+            return data["location"][0]["name"]
+    except Exception as e:
+        logger.warning("无法获取城市名称，默认使用 '当前位置'：%s", e)
+    return "当前位置"
 
 def extract_night_min_temp(hourly: List[dict]) -> Optional[float]:
     temps = []
@@ -134,21 +146,26 @@ def main():
     logger.info("夜间最低温：%s", temp)
 
     is_calibration_day = in_calibration_window and (temp is not None and 10 < temp < 25)
-
     advice = suggest_limit(temp, VEHICLE_MODEL, is_calibration_day)
     off_peak_period = get_off_peak_period()
+    city_name = fetch_city_name(WEATHER_LOCATION)
 
     title = "🔋 今日充电提醒"
     if is_calibration_day:
         body = (
-            f"📆 本周为月度校准期。\n"
-            f"🧠 {advice}\n"
+            f"📆 本周为月度校准期。
+"
+            f"🧠 {advice}
+"
             f"🕰️ 今日低谷充电时段：{off_peak_period}"
         )
     elif temp is not None:
-        body = f"🌡️ 成都今晚最低气温约为 {temp:.1f}℃。\n⚡ {advice}\n🕰️ 今日低谷充电时段：{off_peak_period}"
+        body = f"🌡️ {city_name}今晚最低气温约为 {temp:.1f}℃。
+⚡ {advice}
+🕰️ 今日低谷充电时段：{off_peak_period}"
     else:
-        body = f"⚠️ {advice}\n🕰️ 今日低谷充电时段：{off_peak_period}"
+        body = f"⚠️ {advice}
+🕰️ 今日低谷充电时段：{off_peak_period}"
 
     logger.info("消息内容：%s", body)
     push_bark(title, body)
