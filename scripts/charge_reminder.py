@@ -152,20 +152,21 @@ def main():
 
     title = "🔋 今日充电提醒"
     if is_calibration_day:
+        # 修复：使用单行字符串或正确的多行格式
         body = (
-            f"📆 本周为月度校准期。
-"
-            f"🧠 {advice}
-"
+            f"📆 本周为月度校准期。\n"
+            f"🧠 {advice}\n"
             f"🕰️ 今日低谷充电时段：{off_peak_period}"
         )
     elif temp is not None:
-        body = f"🌡️ {city_name}今晚最低气温约为 {temp:.1f}℃。
-⚡ {advice}
-🕰️ 今日低谷充电时段：{off_peak_period}"
+        # 修复：使用单行字符串或正确的多行格式
+        body = (
+            f"🌡️ {city_name}今晚最低气温约为 {temp:.1f}℃。\n"
+            f"⚡ {advice}\n"
+            f"🕰️ 今日低谷充电时段：{off_peak_period}"
+        )
     else:
-        body = f"⚠️ {advice}
-🕰️ 今日低谷充电时段：{off_peak_period}"
+        body = f"⚠️ {advice}\n🕰️ 今日低谷充电时段：{off_peak_period}"
 
     logger.info("消息内容：%s", body)
     push_bark(title, body)
