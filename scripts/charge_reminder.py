@@ -103,6 +103,7 @@ def suggest_limit(temp: Optional[float], model: str, is_calibration_day: bool) -
         return "无法获取天气数据，请手动设定充电上限"
 
     strategy = CHARGE_STRATEGIES_KWH.get(model, CHARGE_STRATEGIES_KWH["default"])
+    strategy = sorted(strategy, key=lambda x: x[0], reverse=True)
     usable_capacity = USABLE_CAPACITY_MAP.get(model, USABLE_CAPACITY_MAP["default"])
 
     for threshold, target_kwh in strategy:
