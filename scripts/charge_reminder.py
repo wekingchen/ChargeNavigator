@@ -32,8 +32,8 @@ CHARGE_STRATEGIES_KWH = {
         (25, 36.38),
         (15, 41.58),
         (5, 44.18),
-        (0, 31.19),
-        (-273, 25.99)
+        (-10, 41.58),
+        (-273, 31.19)
     ],
     "model3_2020_sr_ncm": [
         (25, 36.26),
@@ -161,9 +161,9 @@ def main():
     elif temp is not None:
         # 修复：使用单行字符串或正确的多行格式
         body = (
-            f"🌡️ {city_name}今晚最低气温约为 {temp:.1f}℃。\n"
+            f"🌡️ {city_name}今晚最低气温：{temp:.1f}℃\n"
             f"⚡ {advice}\n"
-            f"🕰️ 今日低谷充电时段：{off_peak_period}"
+            f"🕰️ 低谷时段：{off_peak_period}"
         )
     else:
         body = f"⚠️ {advice}\n🕰️ 今日低谷充电时段：{off_peak_period}"
