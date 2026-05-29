@@ -130,7 +130,7 @@ def push_bark(title: str, body: str):
 
     params = {
         "isArchive": "1",
-        "ttl": "86400",
+        "ttl": "18000",
     }
 
     if ICON_URL:
