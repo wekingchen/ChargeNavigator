@@ -123,17 +123,28 @@ def get_off_peak_period() -> str:
     return "未知时段"
 
 def safe_quote(text: str) -> str:
-    return quote(text.encode("utf-8", errors="ignore"))
+    return quote(text, safe="", encoding="utf-8", errors="ignore")
 
 def push_bark(title: str, body: str):
-    url = f"{BARK_BASE_URL}/{BARK_KEY}/{safe_quote(title)}/{safe_quote(body)}"
-    params = {"icon": ICON_URL}
-    logger.info("推送 URL：%s?%s", url, "&".join(f"{k}={v}" for k, v in params.items()))
+    url = f"{BARK_BASE_URL.rstrip('/')}/{BARK_KEY}/{safe_quote(title)}/{safe_quote(body)}"
+
+    params = {
+        "isArchive": "1",
+        "ttl": "86400",
+    }
+
+    if ICON_URL:
+        params["icon"] = ICON_URL
+
+    logger.info("准备推送 Bark 消息，标题：%s", title)
+
     try:
         r = requests.get(url, params=params, timeout=5)
         logger.info("推送结果：%s %s", r.status_code, r.text)
+
         if r.status_code != 200:
             sys.exit(1)
+
     except Exception as e:
         logger.error("推送失败：%s", e)
         sys.exit(1)
