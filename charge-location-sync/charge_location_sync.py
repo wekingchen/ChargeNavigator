@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """
 charge-location-sync
-将城市名转换为和风天气城市 ID，加密后更新至 GitHub Actions Secret。
-配合 iPhone 快捷指令使用，无需手动修改环境变量。
+将城市名/坐标转换为和风天气城市 ID，加密上传至 GitHub Actions Secret，
+同时写入 GitHub Gist 供容器1跨服务器读取。
+配合 iPhone 快捷指令使用。
 """
 
 import os
@@ -29,11 +30,11 @@ if _missing:
 # 环境变量
 # ---------------------------------------------------------------------------
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-GITHUB_REPO  = os.getenv("GITHUB_REPO")   # e.g., "wekingchen/ChargeNavigator"
+GITHUB_REPO  = os.getenv("GITHUB_REPO")    # e.g. "wekingchen/ChargeNavigator"
 QWEATHER_KEY = os.getenv("QWEATHER_KEY")
 QWEATHER_API = os.getenv("QWEATHER_API", "https://geoapi.qweather.com/v2/city/lookup")
-UPDATE_TOKEN = os.getenv("UPDATE_TOKEN", "")  # 快捷指令鉴权 Token，为空则不校验
-GIST_ID      = os.getenv("GIST_ID", "")          # GitHub Gist ID，供容器1跨服务器读取城市 ID
+UPDATE_TOKEN = os.getenv("UPDATE_TOKEN", "") # 接口鉴权 Token，为空则不校验
+GIST_ID      = os.getenv("GIST_ID", "")     # GitHub Gist ID，供容器1跨服务器读取
 
 # ---------------------------------------------------------------------------
 # Flask 应用
@@ -47,16 +48,27 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
+# GitHub 公共请求头
+# ---------------------------------------------------------------------------
+def _github_headers() -> dict:
+    return {
+        "Authorization": f"Bearer {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+
+# ---------------------------------------------------------------------------
 # 城市查询
 # ---------------------------------------------------------------------------
 def get_city_id(city_name: str) -> tuple[str | None, dict | None]:
     """
-    返回 (city_id, city_info)。
-    优先匹配中国城市；无中国结果时 fallback 到第一个，并在 city_info 中标注 warning。
+    城市名或坐标 → (city_id, city_info)。
+    坐标格式：经度,纬度（自动截断为小数点后两位）。
+    优先匹配中国城市；无结果时 fallback 到第一个并标注 warning。
     """
     try:
-        # 坐标格式处理：和风天气仅支持小数点后两位
-        # 输入可能是 "104.0625,30.5485"（经纬度）或普通城市名
+        # 坐标截断：和风天气仅支持小数点后两位
         location_param = city_name
         if "," in city_name:
             parts = city_name.split(",")
@@ -67,7 +79,7 @@ def get_city_id(city_name: str) -> tuple[str | None, dict | None]:
                     location_param = f"{lon},{lat}"
                     logger.info("坐标截断：%s → %s", city_name, location_param)
                 except ValueError:
-                    pass  # 非数字格式，原样传入
+                    pass
 
         resp = requests.get(
             QWEATHER_API,
@@ -101,7 +113,7 @@ def get_city_id(city_name: str) -> tuple[str | None, dict | None]:
                 logger.info("匹配城市：\n%s", json.dumps(info, ensure_ascii=False, indent=2))
                 return city_id, info
 
-        # fallback：无中国城市，取第一个并标注警告
+        # fallback：无中国城市，取第一个
         city_id, info = _extract(
             data["location"][0],
             warning="未找到中国城市，已使用第一个匹配结果，请确认是否正确",
@@ -115,41 +127,8 @@ def get_city_id(city_name: str) -> tuple[str | None, dict | None]:
 
 
 # ---------------------------------------------------------------------------
-# GitHub Secret 操作
+# GitHub Actions Secret 操作
 # ---------------------------------------------------------------------------
-# ---------------------------------------------------------------------------
-# Gist 操作
-# ---------------------------------------------------------------------------
-def update_gist(city_id: str) -> bool:
-    """
-    将城市 ID 写入 Gist 文件。
-    Gist 对外公开可读，容器1无需 Token 即可拉取。
-    """
-    url = f"https://api.github.com/gists/{GIST_ID}"
-    payload = {
-        "description": "ChargeNavigator 城市 ID（自动更新，请勿手动修改）",
-        "files": {
-            "weather_location": {"content": city_id}
-        }
-    }
-    r = requests.patch(url, headers=_github_headers(), json=payload, timeout=10)
-    if r.status_code == 200:
-        raw_url = r.json()["files"]["weather_location"]["raw_url"]
-        logger.info("✅ Gist 已更新，城市 ID：%s", city_id)
-        logger.info("   Gist raw URL：%s", raw_url)
-        return True
-    logger.error("❌ Gist 更新失败：%s %s", r.status_code, r.text)
-    return False
-
-
-def _github_headers() -> dict:
-    return {
-        "Authorization": f"Bearer {GITHUB_TOKEN}",
-        "Accept": "application/vnd.github+json",
-        "X-GitHub-Api-Version": "2022-11-28",
-    }
-
-
 def get_public_key() -> dict | None:
     url = f"https://api.github.com/repos/{GITHUB_REPO}/actions/secrets/public-key"
     r = requests.get(url, headers=_github_headers(), timeout=10)
@@ -175,6 +154,29 @@ def upload_secret(secret_name: str, encrypted_value: str, key_id: str) -> bool:
 
 
 # ---------------------------------------------------------------------------
+# GitHub Gist 操作
+# ---------------------------------------------------------------------------
+def update_gist(city_id: str, city_name: str = "") -> bool:
+    """
+    写入 Gist，格式：城市ID|城市名（无城市名时仅写 ID）。
+    Gist 公开可读，容器1无需 Token 即可拉取。
+    """
+    content_str = f"{city_id}|{city_name}" if city_name else city_id
+    url = f"https://api.github.com/gists/{GIST_ID}"
+    payload = {
+        "description": "ChargeNavigator 城市 ID（自动更新，请勿手动修改）",
+        "files": {"weather_location": {"content": content_str}},
+    }
+    r = requests.patch(url, headers=_github_headers(), json=payload, timeout=10)
+    if r.status_code == 200:
+        raw_url = r.json()["files"]["weather_location"]["raw_url"]
+        logger.info("✅ Gist 已更新：%s（%s）raw: %s", city_id, city_name, raw_url)
+        return True
+    logger.error("❌ Gist 更新失败：%s %s", r.status_code, r.text)
+    return False
+
+
+# ---------------------------------------------------------------------------
 # 路由
 # ---------------------------------------------------------------------------
 @app.route("/health")
@@ -194,7 +196,7 @@ def update_secret():
     data = request.get_json(force=True, silent=True) or {}
     city = data.get("city", "").strip()
 
-    # 处理快捷指令将整个 JSON 作为 city 值传入的情况（双层嵌套）
+    # 处理快捷指令双层嵌套 JSON 的情况
     try:
         parsed = json.loads(city)
         if isinstance(parsed, dict) and "city" in parsed:
@@ -207,9 +209,9 @@ def update_secret():
 
     logger.info("收到请求：%s（来源：%s）", city, request.remote_addr)
 
-    # 1. 判断是否已经是城市 ID（纯数字），跳过 Geo API 查询
+    # 若已是纯数字城市 ID，直接使用，跳过 Geo API
     if city.isdigit():
-        city_id = city
+        city_id   = city
         city_info = {}
         logger.info("收到城市 ID，直接使用：%s", city_id)
     else:
@@ -217,24 +219,25 @@ def update_secret():
         if not city_id:
             return jsonify({"error": "未能获取城市 ID"}), 500
 
-    # 2. 获取 GitHub 公钥
+    # 获取 GitHub 公钥
     pk_data = get_public_key()
     if not pk_data:
         return jsonify({"error": "GitHub 公钥获取失败，请检查 GITHUB_TOKEN 权限"}), 500
 
-    # 3. 加密并上传
+    # 加密并上传 Secret
     encrypted = encrypt(pk_data["key"], city_id)
     if not upload_secret("WEATHER_LOCATION", encrypted, pk_data["key_id"]):
         return jsonify({"error": "上传 GitHub Secret 失败"}), 500
 
-    logger.info("✅ WEATHER_LOCATION 已更新为 %s（%s）", city_id, city)
+    logger.info("✅ WEATHER_LOCATION 已更新为 %s", city_id)
 
-    # 同步更新 Gist（供不同服务器上的容器1拉取）
+    # 更新 Gist（供容器1跨服务器读取）
     gist_updated = False
     if GIST_ID:
-        gist_updated = update_gist(city_id)
+        city_name    = city_info.get("name", "") if city_info else ""
+        gist_updated = update_gist(city_id, city_name)
         if not gist_updated:
-            logger.warning("Gist 更新失败，容器1将在下次重启前继续使用旧城市 ID")
+            logger.warning("Gist 更新失败，容器1将继续使用旧城市 ID 直到下次成功更新")
 
     resp = {"status": "success", "city": city, "city_id": city_id}
     if GIST_ID:
@@ -246,7 +249,7 @@ def update_secret():
 
 
 # ---------------------------------------------------------------------------
-# 入口（开发调试用，生产由 gunicorn 启动）
+# 入口（生产由 gunicorn 启动，此处仅供本地调试）
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)
