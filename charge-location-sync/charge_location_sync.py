@@ -55,9 +55,23 @@ def get_city_id(city_name: str) -> tuple[str | None, dict | None]:
     优先匹配中国城市；无中国结果时 fallback 到第一个，并在 city_info 中标注 warning。
     """
     try:
+        # 坐标格式处理：和风天气仅支持小数点后两位
+        # 输入可能是 "104.0625,30.5485"（经纬度）或普通城市名
+        location_param = city_name
+        if "," in city_name:
+            parts = city_name.split(",")
+            if len(parts) == 2:
+                try:
+                    lon = f"{float(parts[0]):.2f}"
+                    lat = f"{float(parts[1]):.2f}"
+                    location_param = f"{lon},{lat}"
+                    logger.info("坐标截断：%s → %s", city_name, location_param)
+                except ValueError:
+                    pass  # 非数字格式，原样传入
+
         resp = requests.get(
             QWEATHER_API,
-            params={"location": city_name, "key": QWEATHER_KEY, "type": "city"},
+            params={"location": location_param, "key": QWEATHER_KEY, "type": "city"},
             timeout=10,
         )
         resp.raise_for_status()
@@ -180,15 +194,28 @@ def update_secret():
     data = request.get_json(force=True, silent=True) or {}
     city = data.get("city", "").strip()
 
+    # 处理快捷指令将整个 JSON 作为 city 值传入的情况（双层嵌套）
+    try:
+        parsed = json.loads(city)
+        if isinstance(parsed, dict) and "city" in parsed:
+            city = parsed["city"].strip()
+    except (ValueError, TypeError):
+        pass
+
     if not city:
         return jsonify({"error": "城市名不能为空"}), 400
 
-    logger.info("收到城市更新请求：%s（来源：%s）", city, request.remote_addr)
+    logger.info("收到请求：%s（来源：%s）", city, request.remote_addr)
 
-    # 1. 获取城市 ID
-    city_id, city_info = get_city_id(city)
-    if not city_id:
-        return jsonify({"error": "未能获取城市 ID"}), 500
+    # 1. 判断是否已经是城市 ID（纯数字），跳过 Geo API 查询
+    if city.isdigit():
+        city_id = city
+        city_info = {}
+        logger.info("收到城市 ID，直接使用：%s", city_id)
+    else:
+        city_id, city_info = get_city_id(city)
+        if not city_id:
+            return jsonify({"error": "未能获取城市 ID"}), 500
 
     # 2. 获取 GitHub 公钥
     pk_data = get_public_key()
