@@ -2,16 +2,17 @@ FROM python:3.12-alpine
 
 WORKDIR /app
 
-# 正确指定虚拟构建依赖组 .build-deps
+COPY requirements.txt ./
+
 RUN apk add --no-cache --virtual .build-deps \
       gcc \
       musl-dev \
       libffi-dev \
       openssl-dev \
-    && pip install --no-cache-dir flask pynacl requests gunicorn \
+    && pip install --no-cache-dir -r requirements.txt \
     && apk del .build-deps
 
-COPY . /app
+COPY charge_location_sync.py ./
 
 EXPOSE 5000
 
