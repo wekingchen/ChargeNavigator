@@ -1,4 +1,4 @@
-FROM python:3.10-alpine
+FROM python:3.12-alpine
 
 WORKDIR /app
 
@@ -8,11 +8,11 @@ RUN apk add --no-cache --virtual .build-deps \
       musl-dev \
       libffi-dev \
       openssl-dev \
-    && pip install --no-cache-dir flask pynacl requests \
+    && pip install --no-cache-dir flask pynacl requests gunicorn \
     && apk del .build-deps
 
 COPY . /app
 
 EXPOSE 5000
 
-CMD ["python", "charge_location_sync.py"]
+CMD ["gunicorn", "-w", "2", "-b", "0.0.0.0:5000", "--timeout", "30", "charge_location_sync:app"]
